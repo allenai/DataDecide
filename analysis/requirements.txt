@@ -1,0 +1,8 @@
+git+https://github.com/allenai/OLMo-ladder@datados#egg=ladder[plotting] # model ladder
+pandas
+numpy
+tqdm
+matplotlib
+ipython
+ipywidgets
+jupyter
