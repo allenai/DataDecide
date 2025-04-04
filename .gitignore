@@ -2,3 +2,8 @@ data/
 *.pdf
 *.png
 *.pyc
+
+/results/outputs2/
+/results/per_task_out/
+/results/processed_data/
+/results/raw_data/
