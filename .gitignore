@@ -7,4 +7,5 @@ data/
 /results/per_task_out/
 /results/processed_data/
 /results/raw_data/
-/results/new_eval_intermediates
+/results/new_eval_intermediates/
+/results/cheap_decisions_stacked_rc_pred_all.csv
