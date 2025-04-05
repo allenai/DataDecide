@@ -40,3 +40,205 @@ TASKS = [
     'winogrande',
     'mmlu'
 ]
+
+FULL_SCHEDULE_LAST_STEP_PER_MODEL = {
+    '4M': 5725,  # min step value from {5745, 5725, 5735}
+    '6M': 9182,
+    '8M': 13039,
+    '10M': 15117,
+    '14M': 21953,
+    '16M': 24432,
+    '20M': 14584,  # min step value from {14584, 14594}
+    '60M': 29042,  # min step value from {29042, 29052, 29062}
+    '90M': 29901,
+    '150M': 38157,
+    '300M': 45787,
+    '530M': 57786,
+    '750M': 63589,
+    '1B': 69369,
+}
+
+MODEL_TO_BATCH = {
+    '4M': 32,
+    '6M': 32,
+    '8M': 32,
+    '10M': 32,
+    '14M': 32,
+    '16M': 32,
+    '20M': 64,
+    '60M': 96,
+    '90M': 160,
+    '150M': 192,
+    '300M': 320,
+    '530M': 448,
+    '750M': 576,
+    '1B': 704
+}
+
+# non-embedding params
+MODEL_TO_PARAMS = {
+    '4M': 3744832,
+    '6M': 6010464,
+    '8M': 8538240,
+    '10M': 9900432,
+    '12M': 12066600,
+    '14M': 14380224,
+    '16M': 16004560,
+    '20M': 19101888,
+    '60M': 57078144,
+    '90M': 97946640,
+    '150M': 151898880,
+    '300M': 319980544,
+    '530M': 530074944,
+    '750M': 681297408,
+    '1B': 1176832000
+}
+
+
+model_data = {
+    '4M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 64,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 3744832,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 5725,
+    },
+    '6M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 96,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 6010464,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 9182,
+    },
+    '8M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 128,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 8538240,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 13039,
+    },
+    '10M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 144,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 9900432,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 15117,
+    },
+    '14M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 192,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 14380224,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 21953,
+    },
+    '16M': {
+        'Batch size (sequences)': 32,
+        'Dimension': 208,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 16004560,
+        'Num heads': 8,
+        'Num layers': 8,
+        'Training steps': 24432,
+    },
+    '20M': {
+        'Batch size (sequences)': 64,
+        'Dimension': 192,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 19101888,
+        'Num heads': 8,
+        'Num layers': 16,
+        'Training steps': 14584,
+    },
+    '60M': {
+        'Batch size (sequences)': 96,
+        'Dimension': 384,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 57078144,
+        'Num heads': 12,
+        'Num layers': 16,
+        'Training steps': 29042,
+    },
+    '90M': {
+        'Batch size (sequences)': 160,
+        'Dimension': 528,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 97946640,
+        'Num heads': 12,
+        'Num layers': 16,
+        'Training steps': 29901,
+    },
+    '150M': {
+        'Batch size (sequences)': 192,
+        'Dimension': 768,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 151898880,
+        'Num heads': 12,
+        'Num layers': 12,
+        'Training steps': 38157,
+    },
+    '300M': {
+        'Batch size (sequences)': 320,
+        'Dimension': 1024,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 319980544,
+        'Num heads': 16,
+        'Num layers': 16,
+        'Training steps': 45787,
+    },
+    '530M': {
+        'Batch size (sequences)': 448,
+        'Dimension': 1344,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 530074944,
+        'Num heads': 16,
+        'Num layers': 16,
+        'Training steps': 57786,
+    },
+    '750M': {
+        'Batch size (sequences)': 576,
+        'Dimension': 1536,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 681297408,
+        'Num heads': 16,
+        'Num layers': 16,
+        'Training steps': 63589,
+    },
+    '1B': {
+        'Batch size (sequences)': 704,
+        'Dimension': 2048,
+        'MLP ratio': 8,
+        'Model size (non-embedding)': 1176832000,
+        'Num heads': 16,
+        'Num layers': 16,
+        'Training steps': 69369,
+    },
+}
+# Assume `model_data` is already defined from the previous response
+
+SEQUENCE_LENGTH = 2048
+
+for model_name, config in model_data.items():
+    batch_size = config['Batch size (sequences)']
+    training_steps = config['Training steps']
+    non_embedding_params = config['Model size (non-embedding)']
+
+    tokens_trained = training_steps * batch_size * SEQUENCE_LENGTH
+    token_param_ratio = tokens_trained / non_embedding_params
+    learning_rate = 0.0047 * (non_embedding_params / 108000000) ** (-1 / 3)
+
+    config['Sequence Length'] = SEQUENCE_LENGTH
+    config['Tokens trained'] = tokens_trained
+    config['token_param_ratio_non_embedding'] = token_param_ratio
+    config['LR'] = learning_rate
+
+MODEL_CONFIG_DATA = model_data
