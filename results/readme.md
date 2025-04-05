@@ -14,3 +14,5 @@ contains results csv after data cleaning by `data_exploration_and_cleaning.ipynb
 contains raw `s3_to_csv.py` results
 ## new_eval_intermediates
 data from [new-evals](https://github.com/davidheineman/new-evals/blob/main/analysis/notebooks/cheap_decisions/math_code_dec_acc.ipynb)
+## cheap_decisions_stacked_rc_pred_all.csv
+Scaling law fits
