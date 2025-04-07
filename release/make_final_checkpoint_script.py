@@ -94,3 +94,13 @@ if __name__ == "__main__":
             script_file.write(command)
 
 
+    with open("repo_names.txt", "w") as f:
+        for repo_name in repo_names:
+            if repo_name is not None:
+                f.write(repo_name + "\n")
+    print("Script generated: final_checkpoint_upload_script.sh")
+    print("Repo names saved to repo_names.txt")
+    print("All done!")
+    
+
+
