@@ -53,7 +53,7 @@ olmo = OLMoForCausalLM.from_pretrained("allenai/DataDecide-dolma1_7-1B", revisio
 
 ## Data
 
-Released at [https://huggingface.co/datasets/allenai/datadecide](https://huggingface.co/datasets/allenai/datadecide)
+Released at [https://huggingface.co/datasets/allenai/DataDecide-data-recipes](https://huggingface.co/datasets/allenai/DataDecide-data-recipes)
 
 | Source / Recipe                         | Description |
 |----------------------------------------|-------------|
