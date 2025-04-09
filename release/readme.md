@@ -12,6 +12,18 @@ python make_final_checkpoint_script.py
 parallel --joblog progress.log --resume --progress -j1 < final_checkpoint_upload_script.sh
 ```
 
+## reupload the model card
+
+```
+parallel --joblog progress_model_card.log --resume --progress -j10 python upload_model_card.py --repo_id allenai/{} :::repo_names.txt
+```
+
+
+## upload eval metrics results
+```
+python upload_eval.py --private
+```
+
 ## change privacy eg
 
 ```
