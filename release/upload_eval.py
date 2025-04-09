@@ -69,7 +69,7 @@ def process_and_upload_results(csv_path, repo_id, token, private=True):
 
     # Push the dataset to the Hugging Face Hub
     hf_dataset.push_to_hub(repo_id, private=private, token=token)
-    print(f"Successfully uploaded dataset to {repo_id} on branch {branch}.")
+    print(f"Successfully uploaded dataset to {repo_id}.")
 
 if __name__ == "__main__":
     # Argument parsing
