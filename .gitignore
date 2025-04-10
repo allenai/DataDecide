@@ -9,3 +9,4 @@ data/
 /results/raw_data/
 /results/new_eval_intermediates/
 /results/cheap_decisions_stacked_rc_pred_all.csv
+OLMo-ladder/
