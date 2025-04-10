@@ -1,4 +1,10 @@
+This contains utilites for running scaling law fits on our results.
+
+- `remote/` - contains utilities for pulling evaluation results into a single prediction file
+- `utils/` - contains dataloading, ladder usage and plotting code
+
 ### Quick Start
+
 ```sh
 git lfs install # .ipynb files are tracked with git lfs! (brew install git-lfs)
 pip install -r requirements.txt

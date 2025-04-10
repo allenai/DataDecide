@@ -9,8 +9,6 @@ GENERATE_PRIMARY_METRICS = [
     "f1",
     "exact_match",
     "pass_at_1",
-    # "prompt_level_loose_acc",
-    # "maj_at_1"
 ]
 
 
