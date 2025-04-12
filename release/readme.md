@@ -15,7 +15,12 @@ parallel --joblog progress.log --resume --progress -j1 < final_checkpoint_upload
 ## reupload the model card
 
 ```
-parallel --joblog progress_model_card.log --resume --progress -j10 python upload_model_card.py --repo_id allenai/{} :::repo_names.txt
+parallel --joblog progress_model_card.log --resume --progress -j10 python upload_model_card.py --repo_id allenai/{} < repo_names.txt
+```
+
+## upload checkpoints
+```
+parallel --joblog progress_checkpoint.log --resume --progress -j10 python upload_checkpoints.py --repo_name {} < repo_names.txt
 ```
 
 
