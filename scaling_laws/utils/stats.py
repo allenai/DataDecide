@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from utils.dataloader import get_slice
 from utils.constants.constants_models import get_compute, DATA_DECIDE_MODEL_NAMES, DATA_DECIDE_SIZES
-from utils.constants.constants_tasks import REVERSED_METRICS
+from utils.constants import REVERSED_METRICS
 from utils.scaling_laws import compute_2_class
 
 

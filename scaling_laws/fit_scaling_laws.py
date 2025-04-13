@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from utils.scaling_laws import fit_all_mixes
 from utils.stats import compute_decision_accuracy
+from utils.constants import ALL_METRICS
 from remote.hf import push_parquet_to_hf, pull_predictions_from_hf
 
 warnings.filterwarnings("ignore", category=RuntimeWarning) # supress function fitting warnings
@@ -24,11 +25,6 @@ SCALING_LAW_CONFIGS = [
     '2_param',
     '3_param-intermediate',
     '3_param-intermediate-helper_points'
-]
-
-ALL_METRICS = [
-    'primary_metric', 'correct_prob', 'correct_prob_per_token', 'correct_prob_per_char', 'margin', 'margin_per_token', 'margin_per_char', 'total_prob', 'total_prob_per_token', 'total_prob_per_char', 'norm_correct_prob', 'norm_correct_prob_per_token', 'norm_correct_prob_per_char',
-    'acc_raw', 'acc_per_token', 'acc_per_char'
 ]
 
 TARGET_SIZE = '1B'
