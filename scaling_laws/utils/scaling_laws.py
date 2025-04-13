@@ -579,7 +579,7 @@ def fit_all_mixes(df, all_models, mixes, tasks, y_metrics, setups, x_metric='cor
     df_multi_index = df.set_index(['task', 'model']).sort_index()
 
     # Use ProcessPoolExecutor for CPU-intensive mix processing
-    cpus = os.cpu_count()
+    cpus = int(os.cpu_count() * 0.8)
     results = []
     with ProcessPoolExecutor(max_workers=cpus) as process_executor:
         total_jobs = len(y_metrics)*len(setups)*len(mixes)
