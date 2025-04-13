@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from utils.dataloader import get_slice
-from utils.constants.constants_models import get_compute, DDOS_MODEL_NAMES, DDOS_SIZES
+from utils.constants.constants_models import get_compute, DATA_DECIDE_MODEL_NAMES, DATA_DECIDE_SIZES
 from utils.constants.constants_tasks import REVERSED_METRICS
 from utils.scaling_laws import compute_2_class
 
@@ -11,7 +11,7 @@ from utils.scaling_laws import compute_2_class
 def get_perf_size(df, size, task, metric):
     """ Get performance of all models at a specific size """
     _slice: pd.DataFrame = get_slice(df, task=task)
-    _slice = _slice[((_slice['size'] == size)) & (_slice['model'].isin(DDOS_MODEL_NAMES))]
+    _slice = _slice[((_slice['size'] == size)) & (_slice['model'].isin(DATA_DECIDE_MODEL_NAMES))]
     if isinstance(task, str):
         _slice = _slice[_slice['task'] == task]
     elif isinstance(task, list):
@@ -85,7 +85,7 @@ def compute_decision_accuracy(df, results, target_size):
     return results
 
 
-def construct_2class_table(df, selected_tasks, small_metric, target_metric, model_sizes=DDOS_SIZES):
+def construct_2class_table(df, selected_tasks, small_metric, target_metric, model_sizes=DATA_DECIDE_SIZES):
     """
     Compute 2-class accuracy. We are predicting primary_metric at 1B using the metric at a smaller scale
     """
@@ -96,8 +96,8 @@ def construct_2class_table(df, selected_tasks, small_metric, target_metric, mode
 
     for metric, size, task in tqdm(combinations, desc='Computing two class accuracy', disable=(len(combinations) < 50)):
         _slice = get_slice(df, task=task)
-        # _slice = _slice[((_slice['size'] == size)) & (_slice['task'] == task) & (_slice['model'].isin(DDOS_MODEL_NAMES))] # get data for small scale
-        _slice = _slice[((_slice['size'] == size)) & (_slice['model'].isin(DDOS_MODEL_NAMES))] # get data for small scale
+        # _slice = _slice[((_slice['size'] == size)) & (_slice['task'] == task) & (_slice['model'].isin(DATA_DECIDE_MODEL_NAMES))] # get data for small scale
+        _slice = _slice[((_slice['size'] == size)) & (_slice['model'].isin(DATA_DECIDE_MODEL_NAMES))] # get data for small scale
         steps = [sorted(_slice['step'].unique())[-1]]
         for step in steps:
             # get data at the small scale

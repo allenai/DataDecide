@@ -1,4 +1,4 @@
-DDOS_MODEL_NAMES = [
+DATA_DECIDE_MODEL_NAMES = [
     'baseline-150M-5xC-2', 
     'baseline-1B-5xC-2', 
     'baseline-300M-5xC-2', 
@@ -226,7 +226,7 @@ DDOS_MODEL_NAMES = [
     'prox_fineweb_pro-90M-5xC'
 ]
 
-DDOS_SIZES = ['4M', '6M', '8M', '10M', '14M', '16M', '20M', '60M', '90M', '150M', '300M', '530M', '750M', '1B']
+DATA_DECIDE_SIZES = ['4M', '6M', '8M', '10M', '14M', '16M', '20M', '60M', '90M', '150M', '300M', '530M', '750M', '1B']
 
 FULL_SCHEDULE = {
     '4M': 5725,
@@ -283,4 +283,4 @@ MODEL_TO_PARAMETERS = {
 def get_compute(scale):
     return 2048 * 6 * MODEL_TO_BATCH[scale] * MODEL_TO_PARAMETERS[scale] * FULL_SCHEDULE[scale]
 
-DDOS_COMPUTE_SIZES = tuple(get_compute(size) for size in DDOS_SIZES)
+DATA_DECIDE_COMPUTE_SIZES = tuple(get_compute(size) for size in DATA_DECIDE_SIZES)
