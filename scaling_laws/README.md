@@ -6,10 +6,11 @@ This contains utilites for running scaling law fits on our results.
 git lfs install # .ipynb files are tracked with git lfs! (brew install git-lfs)
 pip install -r requirements.txt
 
-# (Optional) If you want to edit the ladder fitting code, you can install locally!
-git clone -b datados https://github.com/allenai/OLMo-ladder OLMo-ladder
-cd OLMo-ladder
-pip install -e ".[plotting]"
+# Dry-run fit scaling laws on a subset of results
+python fit_scaling_laws.py --dry-run
+
+# Render result tables using our ladder fits
+python fit_scaling_laws.py --hf-path allenai/DataDecide-eval-results
 ```
 
 **Folder structure**
@@ -17,6 +18,17 @@ pip install -e ".[plotting]"
 - `utils/` - contains dataloading, ladder usage and plotting code
 
 ### Fit scaling laws
+
+**Setup**
+
+```sh
+# (Optional) If you want to edit the ladder fitting code, you can install locally!
+git clone -b datados https://github.com/allenai/OLMo-ladder OLMo-ladder
+cd OLMo-ladder
+pip install -e ".[plotting]"
+```
+
+**How to run**
 
 ```sh
 # Fit scaling laws with "--dry-run" to use a subset of results for tesing
@@ -28,7 +40,10 @@ python fit_scaling_laws.py --result-path ladder_predictions.csv
 # Fit + push results to HuggingFace
 python fit_scaling_laws.py --result-path ladder_predictions.csv --push-to-hf allenai/DataDecide-eval-results
 
-# Render tables in our paper
+# Render tables in our paper using OUR ladder fits
+python render_tables.py --hf-path allenai/DataDecide-eval-results
+
+# Render tables in our paper using YOUR ladder fits
 python render_tables.py --result-path ladder_predictions.csv
 ```
 

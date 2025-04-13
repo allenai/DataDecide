@@ -1,7 +1,9 @@
 from pathlib import Path
+import pandas as pd
+import argparse
 from utils.table import fix_table_rendering, render_result_table
 from utils.constants import DATA_DIR, TABLE_DIR
-import pandas as pd
+from remote.hf import pull_predictions_from_hf
 
 def save_to_tex(out_str, filename):
     output_path = Path(TABLE_DIR) / filename
@@ -175,12 +177,16 @@ def render_all_tables(results_path):
 
 
 if __name__ == '__main__':
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--result-path', type=str, default='ladder_predictions.csv',
                       help='Path to results CSV (default: ladder_predictions.csv)')
+    parser.add_argument('--hf-path', type=str,
+                      help='HuggingFace dataset to load results from')
     args = parser.parse_args()
 
-    results_path = Path(DATA_DIR) / args.result_path
+    if args.hf_path:
+        local_path = pull_predictions_from_hf(args.hf_path, split_name='scaling_law_fit')
+    else:
+        local_path = Path(DATA_DIR) / args.result_path
     
-    render_all_tables(results_path)
+    render_all_tables(local_path)
