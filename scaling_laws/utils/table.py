@@ -1,4 +1,5 @@
 from IPython.display import display, HTML
+from utils.constants.constants_recepies import SETUP_NAME_LATEX
 import pandas as pd
 
 def highlight(x, as_prct=True, inverse=False):
@@ -68,8 +69,6 @@ def display_table(df, transpose=False, monospace=False):
 
 def render_result_table(results, index, agg_col='setup', only_use_default_scaling_law=False, raw_values=False, include_decision_acc=False):
     """ Convert a df of results to LaTeX """
-    from constants.constants_recepies import SETUP_NAME_LATEX
-
     if index != 'metric':
         filtered_results = results[results['metric'] == 'primary_metric']
     else:

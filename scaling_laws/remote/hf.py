@@ -23,6 +23,9 @@ def convert_csv_to_parquet(csv_file_path):
 
 def push_parquet_to_hf(parquet_file_path, hf_dataset_name, split_name='main', private=True, overwrite=False):
     """ Push a .parquet file to HuggingFace """
+    if not isinstance(parquet_file_path, str):
+        parquet_file_path = str(parquet_file_path)
+    
     if parquet_file_path.endswith(".csv"):
         parquet_file_path = convert_csv_to_parquet(parquet_file_path)
         parquet_file_path = parquet_file_path.replace('.csv', '.parquet')
@@ -92,7 +95,7 @@ def main():
 
     push_parquet_to_hf(
         parquet_file_path='analysis/data/consistent_ranking_metrics.parquet',
-        hf_dataset_name=f'{org_name}/datadecide-evals',
+        hf_dataset_name=f'{org_name}/DataDecide-eval-results',
         split_name='benchmarks',
         overwrite=True,
         private=True,

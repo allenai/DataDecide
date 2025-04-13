@@ -3,10 +3,12 @@ import os
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
 PLOT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'img')
+TABLE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'table')
 
 # make dirs if they don't exist
 if not os.path.exists(PLOT_DIR): os.makedirs(PLOT_DIR)
 if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
+if not os.path.exists(TABLE_DIR): os.makedirs(TABLE_DIR)
 
 def get_title_from_task(task):
     if isinstance(task, list):
