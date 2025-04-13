@@ -6,3 +6,4 @@ matplotlib
 ipython
 ipywidgets
 jupyter
+pyarrow
