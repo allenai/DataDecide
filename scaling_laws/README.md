@@ -10,7 +10,7 @@ pip install -r requirements.txt
 python fit_scaling_laws.py --dry-run
 
 # Render result tables using our ladder fits
-python fit_scaling_laws.py --hf-path allenai/DataDecide-eval-results
+python render_tables.py --hf-path allenai/DataDecide-eval-results
 ```
 
 **Folder structure**
