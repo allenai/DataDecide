@@ -51,7 +51,7 @@ python render_tables.py --result-path ladder_predictions.csv
 
 Scaling laws often have to be de-bugged by looking at the curve fits themselves. Here are some utilities for doing so:
 
-- `example_results.ipynb` -- Example of rendering training curves
-- `scaling_law_figures.ipynb` -- Render paper figures to inspect scaling law fits
-- `scaling_law_tables.ipynb` -- Interactive version of table rendering
-- `math_and_code.ipynb` -- Tables for results on MBPP, HumanEval, etc.
+- `notebooks/example_results.ipynb` -- Example of rendering training curves
+- `notebooks/scaling_law_figures.ipynb` -- Render paper figures to inspect scaling law fits
+- `notebooks/scaling_law_tables.ipynb` -- Interactive version of table rendering
+- `notebooks/math_and_code.ipynb` -- Tables for results on MBPP, HumanEval, etc.
