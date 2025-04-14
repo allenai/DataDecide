@@ -155,6 +155,13 @@ def get_ladder_data(df, task_name, x_metric, y_metric, train_models, eval_models
         if 'ys' not in data_by_name[size]: data_by_name[size]['ys'] = []
         if 'step' not in data_by_name[size]: data_by_name[size]['step'] = []
 
+        # Remove entries where any value is nan
+        if not isinstance(x_val[0], float):
+            mask = [not (pd.isna(x) or pd.isna(y) or pd.isna(s)) for x,y,s in zip(x_val[0], y_val[0], step_val[0])]
+            x_val = [[x for x,m in zip(x_val[0],mask) if m]]
+            y_val = [[y for y,m in zip(y_val[0],mask) if m]]
+            step_val = [[s for s,m in zip(step_val[0],mask) if m]]
+
         data_by_name[size]['step'] += step_val
         data_by_name[size]['xs'] += x_val
         data_by_name[size]['ys'] += y_val
@@ -213,7 +220,9 @@ def run_ladder(
             if k2 == 'mode': continue
             if isinstance(v2, list):
                 import math
-                data_by_name[k1][k2] = [np.mean(v2[0][math.ceil(0.9 * len(v2[0])):])]
+                idx = min(len(v2[0])-1, math.ceil(0.9 * len(v2[0])))
+                data_by_name[k1][k2] = [np.mean(v2[0][idx:])]
+                # data_by_name[k1][k2] = [data_by_name[k1][k2][0][-1]]
 
     # which functional form to use for step 1 prediction
     if 'byte' in x_metric:
@@ -579,7 +588,7 @@ def fit_all_mixes(df, all_models, mixes, tasks, y_metrics, setups, x_metric='cor
     df_multi_index = df.set_index(['task', 'model']).sort_index()
 
     # Use ProcessPoolExecutor for CPU-intensive mix processing
-    cpus = os.cpu_count()
+    cpus = int(os.cpu_count() * 0.8)
     results = []
     with ProcessPoolExecutor(max_workers=cpus) as process_executor:
         total_jobs = len(y_metrics)*len(setups)*len(mixes)
