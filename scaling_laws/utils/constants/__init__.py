@@ -11,7 +11,9 @@ if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
 if not os.path.exists(TABLE_DIR): os.makedirs(TABLE_DIR)
 
 
-REVERSED_METRICS = ['margin_per_byte', 'norm_correct_prob_per_byte', 'correct_prob_per_byte', 'correct_logit_per_byte', 'logits_per_byte_corr']
+REVERSED_METRICS = [
+    'margin_per_byte', 'norm_correct_prob_per_byte', 'correct_prob_per_byte', 'correct_logit_per_byte', 'logits_per_byte_corr', 'correct_prob_per_char',
+]
 
 ALL_METRICS = [
     'primary_metric', 'correct_prob', 'correct_prob_per_token', 'correct_prob_per_char', 'margin', 'margin_per_token', 'margin_per_char', 'total_prob', 'total_prob_per_token', 'total_prob_per_char', 'norm_correct_prob', 'norm_correct_prob_per_token', 'norm_correct_prob_per_char',

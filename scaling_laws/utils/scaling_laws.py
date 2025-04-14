@@ -213,7 +213,9 @@ def run_ladder(
             if k2 == 'mode': continue
             if isinstance(v2, list):
                 import math
-                data_by_name[k1][k2] = [np.mean(v2[0][math.ceil(0.9 * len(v2[0])):])]
+                idx = min(len(v2[0])-1, math.ceil(0.9 * len(v2[0])))
+                data_by_name[k1][k2] = [np.mean(v2[0][idx:])]
+                # data_by_name[k1][k2] = [data_by_name[k1][k2][0][-1]]
 
     # which functional form to use for step 1 prediction
     if 'byte' in x_metric:
