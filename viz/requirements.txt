@@ -1,3 +1,4 @@
 pandas
 matplotlib
 Jinja2
+scipy

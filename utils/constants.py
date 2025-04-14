@@ -1,5 +1,34 @@
 
 
+
+SCALING_LAW_DISPLAY_NAMES = {
+    '3_param': '3-parameter',
+    '3_param-helper_points': '3-parameter with helper points',
+    '3_param-step2=0.5': '3-parameter step 2 fit with >50 % checkpoints',
+    '3_param-helper_points-step2=0.5': '3-parameter with helpers and >50 % checkpoints',
+    '5_param-ai2': '5-parameter',
+    '5_param-1_step-ai2': '5-parameter, single step',
+    '3_param-1_step': '3-parameter, single step',
+    '2_param': '2-parameter'
+}
+
+BENCHMARK_DISPLAY_NAMES = {
+    "arc_challenge": "ARC Challenge",
+    "arc_easy": "ARC Easy",
+    "boolq": "BoolQ",
+    "csqa": "CommonsenseQA",
+    "hellaswag": "HellaSwag",
+    "openbookqa": "OpenBookQA",
+    "piqa": "PIQA",
+    "socialiqa": "SocialIQA",
+    "winogrande": "WinoGrande",
+    "mmlu": "MMLU",
+    'minerva': 'Minerva',
+    'gsm8k': 'GSM8K',
+    'mbpp': 'MBPP',
+    'humaneval': 'HumanEval'
+}
+
 DATA_NAME_CLEAN = {
         "dolma17": "Dolma1.7",
         "no_code": "Dolma1.7 (no code)", 
