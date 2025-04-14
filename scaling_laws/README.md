@@ -16,6 +16,7 @@ python render_tables.py --hf-path allenai/DataDecide-eval-results
 **Folder structure**
 - `remote/` - contains utilities for pulling evaluation results into a single prediction file
 - `utils/` - contains dataloading, ladder usage and plotting code
+- `notebooks/` - contains interactive notebooks for inspecting scaling law fits
 
 ### Fit scaling laws
 
