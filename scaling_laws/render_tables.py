@@ -168,7 +168,10 @@ def _render_metric_table(results):
 
 
 def render_all_tables(results_path):
-    results = pd.read_csv(results_path)
+    if str(results_path).endswith('.csv'):
+        results = pd.read_csv(results_path)
+    else:
+        results = pd.read_parquet(results_path)
 
     _render_mix_table(results)
     _render_perf_table(results)
