@@ -2,3 +2,4 @@ pandas
 matplotlib
 Jinja2
 scipy
+datasets
