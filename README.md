@@ -9,7 +9,7 @@
 </p>
 
 
-More than one training run goes into making a large language model, but developers rarely release the small models and datasets they experiment with during the development process. How do they decide what dataset to use for pretraining or which benchmarks to hill climb on? To empower open exploration of these questions, we release [DataDecide](allenai.org/paper/datadecide)—a suite of models we pretrain on 25 corpora with differing sources, deduplication, and filtering up to 100B tokens, over 14 different model sizes ranging from 4M parameters up to 1B parameters (more than 30k model checkpoints in total).
+More than one training run goes into making a large language model, but developers rarely release the small models and datasets they experiment with during the development process. How do they decide what dataset to use for pretraining or which benchmarks to hill climb on? To empower open exploration of these questions, we release [DataDecide](https://allenai.org/papers/datadecide)—a suite of models we pretrain on 25 corpora with differing sources, deduplication, and filtering up to 100B tokens, over 14 different model sizes ranging from 4M parameters up to 1B parameters (more than 30k model checkpoints in total).
 
 ## 350 Models over Differences in Data in Scale
 For each of our 25 datasets and 14 model sizes, we train a model linked below. Each has intermediate checkpoints (uploading after initial release), runs over 3 random seeds. All models finish training at a token to parameter ratio of 100 (e.g., 1B parameters -> 100B tokens).
