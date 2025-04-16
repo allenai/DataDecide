@@ -110,7 +110,7 @@ def generate_setups(setup_types, model_sizes):
     return setups
 
 def run_ladder_fits(data_path, results_path, dry_run=False):
-    local_path = pull_predictions_from_hf(data_path, split_name='train')
+    local_path = pull_predictions_from_hf(data_path, split_name='macro_avg')
     df = pd.read_parquet(local_path)
     print(f'Loaded {len(df):,} model evaluations')
 
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data-path', type=str, default='allenai/DataDecide-eval-results-davidh',
+    parser.add_argument('--data-path', type=str, default='allenai/DataDecide-eval-results',
                       help='HuggingFace dataset to load results from')
     parser.add_argument('--result-path', type=str, default='ladder_predictions.csv',
                       help='Path to save results CSV (default: ladder_predictions.csv)')
