@@ -1,0 +1,4 @@
+# Requirements for check_repo_status.py
+# These packages only use metadata APIs - no model downloads
+huggingface_hub>=0.20.0
+tqdm>=4.60.0
