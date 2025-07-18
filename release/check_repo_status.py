@@ -294,7 +294,7 @@ def check_repository_status(api: HfApi, org_name: str, repo_name: str,
         status = check_branch_commits(api, org_name, repo_name, branch_name)
         branch_statuses.append(status)
         # Small delay to avoid rate limiting
-        time.sleep(0.1)
+        time.sleep(0.01)
     
     return RepoStatus(
         name=repo_name,
@@ -415,7 +415,7 @@ def main():
             
             pbar.update(1)
             # Rate limiting
-            time.sleep(0.2)
+            time.sleep(0.02)
     
     # Print summary
     print_summary(repo_statuses)
