@@ -42,11 +42,16 @@ python check_repo_status.py --single_repo "DataDecide-falcon-60M"
 # Test repositories matching a pattern
 python check_repo_status.py --repo_filter "falcon-60M"
 
+# Test repositories of a specific size
+python check_repo_status.py --size_filter "1B"
+python check_repo_status.py --size_filter "60M"
+python check_repo_status.py --size_filter "4M"
+
 # Test only branches with a specific step
 python check_repo_status.py --step_filter "step1250"
 
-# Combine filters: test one repo and one step
-python check_repo_status.py --single_repo "DataDecide-falcon-60M" --step_filter "step1250"
+# Combine filters: test 1B repos with only step1250 branches
+python check_repo_status.py --size_filter "1B" --step_filter "step1250"
 
 # Test falcon repos with only step1250 branches
 python check_repo_status.py --repo_filter "falcon" --step_filter "step1250" --detailed

@@ -317,7 +317,33 @@ def print_summary(repo_statuses: List[RepoStatus]):
     
     total_repos = len(repo_statuses)
     existing_repos = sum(1 for status in repo_statuses if status.exists)
+    
+    # Count repositories with various types of issues
     repos_with_errors = sum(1 for status in repo_statuses if status.error)
+    repos_with_missing_branches = 0
+    repos_with_bad_commits = 0
+    
+    for status in repo_statuses:
+        if not status.exists:
+            continue
+        
+        missing_branches = status.expected_branches - status.found_branches
+        branches_without_commits = [b for b in status.branch_statuses 
+                                  if b.exists and not b.has_model_commits]
+        
+        if missing_branches:
+            repos_with_missing_branches += 1
+        if branches_without_commits:
+            repos_with_bad_commits += 1
+    
+    # Total repositories with any kind of issue
+    total_repos_with_issues = len([
+        status for status in repo_statuses 
+        if (not status.exists or 
+            status.error or 
+            (status.expected_branches - status.found_branches) or
+            any(b.exists and not b.has_model_commits for b in status.branch_statuses))
+    ])
     
     print(f"\n{'='*80}")
     print(f"REPOSITORY STATUS SUMMARY")
@@ -325,7 +351,10 @@ def print_summary(repo_statuses: List[RepoStatus]):
     print(f"Total repositories checked: {total_repos}")
     print(f"Existing repositories: {existing_repos}")
     print(f"Missing repositories: {total_repos - existing_repos}")
-    print(f"Repositories with errors: {repos_with_errors}")
+    print(f"Repositories with API errors: {repos_with_errors}")
+    print(f"Repositories with missing branches: {repos_with_missing_branches}")
+    print(f"Repositories with bad commits: {repos_with_bad_commits}")
+    print(f"Total repositories with issues: {total_repos_with_issues}")
     
     # Missing repositories
     missing_repos = [status for status in repo_statuses if not status.exists]
@@ -365,6 +394,8 @@ def main():
                        help="Check only branches with this step (e.g., 'step1250')")
     parser.add_argument("--single_repo", type=str,
                        help="Check only this specific repository name")
+    parser.add_argument("--size_filter", type=str,
+                       help="Check only repositories ending with this size (e.g., '1B', '60M', '4M')")
     args = parser.parse_args()
     
     # Initialize HF API
@@ -388,6 +419,12 @@ def main():
         if not repo_names:
             print(f"No repositories found matching filter '{args.repo_filter}'")
             return
+    elif args.size_filter:
+        # Filter repositories by size suffix
+        repo_names = [name for name in all_repo_names if name.endswith(args.size_filter)]
+        if not repo_names:
+            print(f"No repositories found ending with size '{args.size_filter}'")
+            return
     else:
         repo_names = all_repo_names
     
@@ -396,6 +433,8 @@ def main():
     
     if args.step_filter:
         print(f"Filtering branches by step: {args.step_filter}")
+    if args.size_filter:
+        print(f"Filtering repositories by size: {args.size_filter}")
     
     # Check each repository
     repo_statuses = []
