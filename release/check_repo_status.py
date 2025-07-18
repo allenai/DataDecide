@@ -30,6 +30,10 @@ except ImportError:
         RevisionNotFoundError = Exception
 import time
 from tqdm import tqdm
+try:
+    import requests
+except ImportError:
+    requests = None
 
 # Constants
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -159,7 +163,10 @@ def check_repo_exists(api: HfApi, org_name: str, repo_name: str) -> bool:
         return False
 
 def check_branch_commits(api: HfApi, org_name: str, repo_name: str, branch_name: str) -> BranchStatus:
-    """Check if a branch exists and has model.safetensors commits."""
+    """Check if a branch exists and has the expected model commit.
+    Note: We cannot reliably check if model.safetensors was modified in the commit
+    due to HuggingFace API limitations, so we trust the commit message.
+    """
     full_repo_name = f"{org_name}/{repo_name}"
     
     try:
@@ -173,23 +180,67 @@ def check_branch_commits(api: HfApi, org_name: str, repo_name: str, branch_name:
             repo_type="model"
         ))
         
-        # Check for commits that suggest model uploads
-        model_commits = []
-        for commit in commits:
-            # Check if commit message suggests it's a model commit
-            commit_title = commit.title.lower()
-            if any(keyword in commit_title for keyword in ['model', 'safetensors', 'checkpoint', 'push', 'upload']):
-                model_commits.append(commit)
+        if not commits:
+            return BranchStatus(
+                name=branch_name,
+                exists=True,
+                has_model_commits=False,
+                commit_count=0,
+                error="No commits found"
+            )
         
-        # We expect at least 2 commits: initial + model upload
-        has_model_commits = len(commits) > 1
+        # Get the latest commit
+        latest_commit = commits[0]  # list_repo_commits returns newest first
         
-        return BranchStatus(
-            name=branch_name,
-            exists=True,
-            has_model_commits=has_model_commits,
-            commit_count=len(commits)
-        )
+        # Check if the latest commit message matches the expected pattern
+        expected_message = f"Pushing model to {branch_name} branch"
+        commit_message_matches = latest_commit.title == expected_message
+        
+        if not commit_message_matches:
+            return BranchStatus(
+                name=branch_name,
+                exists=True,
+                has_model_commits=False,
+                commit_count=len(commits),
+                error=f"Latest commit: '{latest_commit.title}' (expected: '{expected_message}')"
+            )
+        
+        # Check if model.safetensors exists in the repo
+        try:
+            files_at_commit = api.list_repo_files(
+                repo_id=full_repo_name,
+                revision=latest_commit.commit_id,
+                repo_type="model"
+            )
+            has_model_file = 'model.safetensors' in files_at_commit
+            
+            if not has_model_file:
+                return BranchStatus(
+                    name=branch_name,
+                    exists=True,
+                    has_model_commits=False,
+                    commit_count=len(commits),
+                    error="model.safetensors not found in repository"
+                )
+            
+            # If commit message is correct and model file exists, assume it's valid
+            # This is the best we can do without access to commit diff information
+            return BranchStatus(
+                name=branch_name,
+                exists=True,
+                has_model_commits=True,
+                commit_count=len(commits),
+                error=None
+            )
+                
+        except Exception as e:
+            return BranchStatus(
+                name=branch_name,
+                exists=True,
+                has_model_commits=False,
+                commit_count=len(commits),
+                error=f"Failed to check files: {str(e)}"
+            )
         
     except RevisionNotFoundError:
         return BranchStatus(

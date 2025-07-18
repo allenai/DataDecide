@@ -2,3 +2,4 @@
 # These packages only use metadata APIs - no model downloads
 huggingface_hub>=0.20.0
 tqdm>=4.60.0
+requests>=2.25.0
