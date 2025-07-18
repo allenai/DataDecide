@@ -212,7 +212,15 @@ def check_branch_commits(api: HfApi, org_name: str, repo_name: str, branch_name:
                 revision=latest_commit.commit_id,
                 repo_type="model"
             )
-            has_model_file = 'model.safetensors' in files_at_commit
+            # Check for model file(s) depending on model size
+            size = repo_name.split('-')[-1]
+            if size == "1B":
+                has_model_file = (
+                    "model-00001-of-00002.safetensors" in files_at_commit and
+                    "model-00002-of-00002.safetensors" in files_at_commit
+                )
+            else:
+                has_model_file = "model.safetensors" in files_at_commit
             
             if not has_model_file:
                 return BranchStatus(
