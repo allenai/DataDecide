@@ -8,6 +8,7 @@ This script:
 3. Loads the corresponding local model from Weka
 4. Compares the weights tensor by tensor
 5. Cleans up downloaded files to avoid storage issues
+6. Logs all operations to a configurable log file
 
 Usage:
     python verify_uploaded_models.py --org_name allenai
@@ -16,6 +17,7 @@ Usage:
     python verify_uploaded_models.py --test_functions  # Test basic functionality without downloads
     python verify_uploaded_models.py --repo_filter falcon-60M  # Test specific repos
     python verify_uploaded_models.py --dry_run  # Show what would be tested
+    python verify_uploaded_models.py --log_file /path/to/custom.log  # Custom log file location
 """
 
 import os
@@ -24,6 +26,8 @@ import argparse
 import tempfile
 import shutil
 import random
+import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Set, Optional, Tuple
 import torch
@@ -373,32 +377,46 @@ def debug_seed_differences(api: HfApi, org_name: str, checkpoints_by_repo: Dict[
                 shutil.rmtree(temp_path)
 
 def verify_single_repo(api: HfApi, org_name: str, repo_name: str, checkpoints: List[dict], 
-                      temp_dir: str) -> Tuple[bool, str, str]:
+                      temp_dir: str, logger: logging.Logger) -> Tuple[bool, str, str]:
     """Verify one randomly sampled branch from a repository."""
+    
+    logger.info(f"Starting verification for repository: {repo_name}")
     
     # Get available branches
     branches = get_available_branches(api, org_name, repo_name)
     if not branches:
+        logger.warning(f"No branches found for {repo_name}")
         return False, "No branches found", ""
+    
+    logger.info(f"Found {len(branches)} branches for {repo_name}")
     
     # Randomly sample one branch
     branch = random.choice(branches)
+    logger.info(f"Randomly selected branch: {branch}")
     
     # Find corresponding local path
     local_path = find_local_path(branch, checkpoints)
     if not local_path:
+        logger.error(f"Could not find local path for branch {branch} in repo {repo_name}")
         return False, f"Could not find local path for branch {branch}", branch
     
+    logger.info(f"Local path found: {local_path}")
+    
     if not os.path.exists(local_path):
+        logger.error(f"Local path does not exist: {local_path}")
         return False, f"Local path does not exist: {local_path}", branch
     
     # Create a subdirectory for this download
     repo_temp_dir = os.path.join(temp_dir, f"{repo_name}_{branch}")
     os.makedirs(repo_temp_dir, exist_ok=True)
+    logger.info(f"Created temporary directory: {repo_temp_dir}")
     
     try:
         # Download the model from HF Hub
+        logger.info(f"Downloading {org_name}/{repo_name} branch {branch}")
         print(f"Downloading {org_name}/{repo_name} branch {branch}")
+        
+        start_time = time.time()
         hf_model_path = snapshot_download(
             repo_id=f"{org_name}/{repo_name}",
             revision=branch,
@@ -406,20 +424,64 @@ def verify_single_repo(api: HfApi, org_name: str, repo_name: str, checkpoints: L
             allow_patterns=["*.safetensors", "*.json"],  # Only download necessary files
             token=os.getenv("HF_TOKEN")
         )
+        download_time = time.time() - start_time
+        logger.info(f"Download completed in {download_time:.2f} seconds")
         
         # Compare weights
+        logger.info(f"Starting weight comparison between HF and local models")
+        start_time = time.time()
         weights_match, message = compare_model_weights(hf_model_path, local_path)
+        comparison_time = time.time() - start_time
+        logger.info(f"Weight comparison completed in {comparison_time:.2f} seconds")
+        
+        if weights_match:
+            logger.info(f"✓ VERIFICATION PASSED for {repo_name} (branch: {branch}): {message}")
+        else:
+            logger.error(f"✗ VERIFICATION FAILED for {repo_name} (branch: {branch}): {message}")
         
         return weights_match, message, branch
         
     except Exception as e:
-        return False, f"Error during verification: {str(e)}", branch
+        error_msg = f"Error during verification: {str(e)}"
+        logger.error(f"Exception in {repo_name} (branch: {branch}): {error_msg}")
+        return False, error_msg, branch
     
     finally:
         # Clean up downloaded files
         if os.path.exists(repo_temp_dir):
             shutil.rmtree(repo_temp_dir)
+            logger.info(f"Cleaned up temporary directory: {repo_temp_dir}")
             print(f"Cleaned up {repo_temp_dir}")
+
+def setup_logging(log_file: str) -> logging.Logger:
+    """Set up logging to both file and console."""
+    # Create logger
+    logger = logging.getLogger('model_verification')
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    logger.handlers = []
+    
+    # Create formatters
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_formatter = logging.Formatter('%(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file, mode='a')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 def main():
     # Parse arguments
@@ -444,13 +506,25 @@ def main():
                        help="Dry run: show what would be tested without downloading")
     parser.add_argument("--max_repos", type=int,
                        help="Maximum number of repositories to test (for large-scale testing)")
+    parser.add_argument("--log_file", type=str, 
+                       default=os.path.join(SCRIPT_DIR, "verification.log"),
+                       help="Path to log file (default: verification.log in script directory)")
     args = parser.parse_args()
+    
+    # Set up logging
+    logger = setup_logging(args.log_file)
+    logger.info("="*80)
+    logger.info(f"Starting model verification at {datetime.now()}")
+    logger.info(f"Arguments: {vars(args)}")
+    logger.info("="*80)
     
     # Set random seed for reproducible sampling
     random.seed(args.seed)
+    logger.info(f"Set random seed to {args.seed}")
     
     # Handle test mode
     if args.test_functions:
+        logger.info("Running basic functionality tests")
         test_basic_functionality()
         return
     
@@ -464,11 +538,14 @@ def main():
     
     # Load data
     print("Loading repository names and checkpoint data...")
+    logger.info("Loading repository names and checkpoint data...")
     all_repo_names = load_repo_names()
     checkpoints_by_repo = load_checkpoints()
+    logger.info(f"Loaded {len(all_repo_names)} repository names and {len(checkpoints_by_repo)} checkpoint groups")
     
     # Handle seed difference debug mode
     if args.debug_seed_diff:
+        logger.info("Running seed difference debug mode")
         with tempfile.TemporaryDirectory(prefix="seed_diff_test_") as temp_dir:
             debug_seed_differences(api, args.org_name, checkpoints_by_repo, temp_dir, args.tolerance)
         return
@@ -478,33 +555,43 @@ def main():
         # Check only the specific repository
         repo_names = [args.single_repo] if args.single_repo in all_repo_names else []
         if not repo_names:
+            logger.error(f"Repository '{args.single_repo}' not found in repo_names.txt")
             print(f"Repository '{args.single_repo}' not found in repo_names.txt")
             return
+        logger.info(f"Testing single repository: {args.single_repo}")
     elif args.debug:
         # Find a small model (4M) for quick testing
         repo_names = [name for name in all_repo_names if name.endswith('-4M')]
         if repo_names:
             repo_names = [repo_names[0]]  # Just test one
+            logger.info(f"Debug mode: testing single 4M model: {repo_names[0]}")
         else:
+            logger.error("No 4M models found for debug mode")
             print("No 4M models found for debug mode")
             return
     elif args.repo_filter:
         repo_names = [name for name in all_repo_names if args.repo_filter in name]
         if not repo_names:
+            logger.error(f"No repositories found matching filter '{args.repo_filter}'")
             print(f"No repositories found matching filter '{args.repo_filter}'")
             return
+        logger.info(f"Filtered to {len(repo_names)} repositories matching '{args.repo_filter}'")
     else:
         repo_names = all_repo_names
+        logger.info("Testing all repositories")
     
     # Apply max_repos limit if specified
     if args.max_repos and len(repo_names) > args.max_repos:
         repo_names = repo_names[:args.max_repos]
+        logger.info(f"Limited to first {args.max_repos} repositories")
         print(f"Limited to first {args.max_repos} repositories")
     
+    logger.info(f"Final repository list: {len(repo_names)} repositories to test")
     print(f"Testing {len(repo_names)} repositories")
     
     # Dry run mode
     if args.dry_run:
+        logger.info("DRY RUN MODE - Showing what would be tested")
         print("\nDRY RUN MODE - Showing what would be tested:")
         for repo_name in repo_names:
             if repo_name in checkpoints_by_repo:
@@ -512,22 +599,28 @@ def main():
                 if branches:
                     sample_branch = random.choice(branches)
                     local_path = find_local_path(sample_branch, checkpoints_by_repo[repo_name])
+                    logger.info(f"Would test {repo_name}: branch '{sample_branch}' -> {local_path}")
                     print(f"  {repo_name}: would test branch '{sample_branch}' -> {local_path}")
                 else:
+                    logger.warning(f"No branches found for {repo_name}")
                     print(f"  {repo_name}: no branches found")
             else:
+                logger.warning(f"No checkpoint data for {repo_name}")
                 print(f"  {repo_name}: no checkpoint data")
         return
     
     # Create temporary directory for downloads
     with tempfile.TemporaryDirectory(prefix="model_verification_") as temp_dir:
+        logger.info(f"Using temporary directory: {temp_dir}")
         print(f"Using temporary directory: {temp_dir}")
         
         results = []
         successful_verifications = 0
         
+        logger.info("Starting verification loop")
         for repo_name in tqdm(repo_names, desc="Verifying repositories"):
             if repo_name not in checkpoints_by_repo:
+                logger.warning(f"No checkpoint data found for {repo_name}")
                 print(f"No checkpoint data found for {repo_name}")
                 results.append({
                     "repo_name": repo_name,
@@ -538,7 +631,7 @@ def main():
                 continue
             
             success, message, branch = verify_single_repo(
-                api, args.org_name, repo_name, checkpoints_by_repo[repo_name], temp_dir
+                api, args.org_name, repo_name, checkpoints_by_repo[repo_name], temp_dir, logger
             )
             
             results.append({
@@ -558,6 +651,14 @@ def main():
             time.sleep(0.5)
     
     # Print summary
+    logger.info("="*80)
+    logger.info("VERIFICATION SUMMARY")
+    logger.info("="*80)
+    logger.info(f"Total repositories tested: {len(results)}")
+    logger.info(f"Successful verifications: {successful_verifications}")
+    logger.info(f"Failed verifications: {len(results) - successful_verifications}")
+    logger.info(f"Success rate: {successful_verifications/len(results)*100:.1f}%")
+    
     print(f"\n{'='*80}")
     print(f"VERIFICATION SUMMARY")
     print(f"{'='*80}")
@@ -569,9 +670,12 @@ def main():
     # Show failures
     failures = [r for r in results if not r["success"]]
     if failures:
+        logger.info(f"FAILED VERIFICATIONS ({len(failures)}):")
         print(f"\nFAILED VERIFICATIONS ({len(failures)}):")
         for failure in failures:
-            print(f"  {failure['repo_name']} (branch: {failure['branch']}): {failure['message']}")
+            failure_msg = f"{failure['repo_name']} (branch: {failure['branch']}): {failure['message']}"
+            logger.info(f"  FAILED: {failure_msg}")
+            print(f"  {failure_msg}")
     
     # Save detailed results
     results_file = os.path.join(SCRIPT_DIR, "model_verification_results.json")
@@ -583,12 +687,18 @@ def main():
                 "failed": len(results) - successful_verifications,
                 "success_rate": successful_verifications/len(results)*100,
                 "tolerance": args.tolerance,
-                "random_seed": args.seed
+                "random_seed": args.seed,
+                "timestamp": datetime.now().isoformat(),
+                "log_file": args.log_file
             },
             "results": results
         }, f, indent=2)
     
+    logger.info(f"Detailed results saved to: {results_file}")
+    logger.info(f"Verification completed at {datetime.now()}")
+    logger.info("="*80)
     print(f"\nDetailed results saved to: {results_file}")
+    print(f"Log file: {args.log_file}")
 
 if __name__ == "__main__":
     main()
