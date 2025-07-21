@@ -20,6 +20,33 @@ SEED_MAPPING = {
 
 WEKA_PATH = "/data/input/"
 
+FULL_SCHEDULE_LAST_STEP_PER_MODEL = {
+    "4M": 5725,  # min step value from {5745, 5725, 5735}
+    "6M": 9182,
+    "8M": 13039,
+    "10M": 15117,
+    "14M": 21953,
+    "16M": 24432,
+    "20M": 14584,  # min step value from {14584, 14594}
+    "60M": 29042,  # min step value from {29042, 29052, 29062}
+    "90M": 29901,
+    "150M": 38157,
+    "300M": 45787,
+    "530M": 57786,
+    "750M": 63589,
+    "1B": 69369,
+}
+
+# have to round up for the models that ran to long to make sure we get a checkpoint after the LR fully decays
+def round_up(value, increment):
+    return (value + increment - 1) // increment * increment
+
+for model, step in FULL_SCHEDULE_LAST_STEP_PER_MODEL.items():
+    if model == '1B':
+        FULL_SCHEDULE_LAST_STEP_PER_MODEL[model] = round_up(step, 2500)
+    else:
+        FULL_SCHEDULE_LAST_STEP_PER_MODEL[model] = round_up(step, 1250)
+
 # Mapping for model names to repo names
 recipe_display_name = {
     "dolma17": "dolma1_7",
@@ -94,6 +121,41 @@ def extract_step_number(revision):
     if match:
         return int(match.group(1))
     return 0
+
+def extract_model_size(model_name):
+    """Extract model size from model name like 'falcon_and_cc_tulu_qc_top10-60M-15'."""
+    parts = model_name.split('-')
+    for part in parts:
+        if part.endswith('M') or part.endswith('B'):
+            return part
+    return None
+
+def filter_revisions_by_schedule(revisions, model_name):
+    """
+    Filter revisions to only include steps within the training schedule.
+    
+    Args:
+        revisions: List of revision strings
+        model_name: Model name to extract size from
+    
+    Returns:
+        List of filtered revision strings
+    """
+    model_size = extract_model_size(model_name)
+    if model_size not in FULL_SCHEDULE_LAST_STEP_PER_MODEL:
+        print(f"Warning: Model size {model_size} not found in schedule, using all revisions")
+        return revisions
+    
+    max_step = FULL_SCHEDULE_LAST_STEP_PER_MODEL[model_size]
+    filtered_revisions = []
+    
+    for revision in revisions:
+        step = extract_step_number(revision)
+        if step <= max_step:
+            filtered_revisions.append(revision)
+    
+    print(f"Filtered revisions for {model_size} model: {len(filtered_revisions)}/{len(revisions)} (max step: {max_step})")
+    return filtered_revisions
 
 def sample_revisions_evenly(revisions, num_samples):
     """
@@ -179,11 +241,15 @@ def main():
         seed_name = SEED_MAPPING[seed].replace(" ", "-")
         location = checkpoint['checkpoints_location'].replace("weka://oe-eval-default/", WEKA_PATH)
         
-        # Sample revisions evenly
-        sampled_revisions = sample_revisions_evenly(checkpoint["revisions"], args.num_revisions)
+        # Filter revisions by training schedule first
+        filtered_revisions = filter_revisions_by_schedule(checkpoint["revisions"], checkpoint["model_name"])
+        
+        # Sample revisions evenly from filtered list
+        sampled_revisions = sample_revisions_evenly(filtered_revisions, args.num_revisions)
         
         print(f"\nProcessing checkpoint for seed {seed_name}:")
         print(f"Total revisions: {len(checkpoint['revisions'])}")
+        print(f"Filtered revisions (within schedule): {len(filtered_revisions)}")
         print(f"Sampled revisions: {len(sampled_revisions)}")
         print(f"Sampled steps: {[extract_step_number(rev) for rev in sampled_revisions]}")
         
