@@ -162,6 +162,13 @@ def extract_step_number(revision):
 def extract_model_size(model_name):
     """Extract model size from model name like 'falcon_and_cc_tulu_qc_top10-60M-15'."""
     parts = model_name.split('-')
+    # The size is always the second-to-last part in the format: {recipe}-{size}-{seed}
+    if len(parts) >= 2:
+        size_candidate = parts[-2]
+        if size_candidate.endswith('M') or size_candidate.endswith('B'):
+            return size_candidate
+    
+    # Fallback: search for any part that looks like a size
     for part in parts:
         if part.endswith('M') or part.endswith('B'):
             return part
