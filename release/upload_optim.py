@@ -2,9 +2,19 @@ import os
 import argparse
 import json
 import re
+import time
 from huggingface_hub import upload_file, HfApi
 from pprint import pprint
 import tqdm
+try:
+    from huggingface_hub.errors import RepositoryNotFoundError, RevisionNotFoundError
+except ImportError:
+    try:
+        from huggingface_hub.utils._errors import RepositoryNotFoundError, RevisionNotFoundError
+    except ImportError:
+        # Fallback for older versions
+        RepositoryNotFoundError = Exception
+        RevisionNotFoundError = Exception
 
 # Constants
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -212,12 +222,41 @@ def upload_optimizer_state(repo_id, checkpoint_path, branch_name, hf_token):
         print(f"Error uploading optimizer state for {branch_name}: {e}")
         return False
 
+def check_optim_exists(api: HfApi, repo_id: str, branch_name: str) -> bool:
+    """Check if optim.pt already exists in the specified branch."""
+    try:
+        # First check if branch exists
+        try:
+            api.repo_info(repo_id=repo_id, revision=branch_name)
+        except RevisionNotFoundError:
+            return False
+        
+        # List files in the branch to check for training/optim.pt
+        try:
+            files = api.list_repo_files(
+                repo_id=repo_id,
+                revision=branch_name,
+                repo_type="model"
+            )
+            
+            optim_file = "training/optim.pt"
+            # Small delay to avoid rate limiting
+            time.sleep(0.01)
+            return optim_file in files
+            
+        except Exception:
+            return False
+            
+    except Exception:
+        return False
+
 def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description="Upload optimizer states to a Hugging Face repository.")
     parser.add_argument("--repo_name", type=str, required=True, help="The Hugging Face repo name (e.g., DataDecide-falcon-and-cc-qc-tulu-10p-60M)")
     parser.add_argument("--org_name", type=str, default="allenai", help="The organization name on Hugging Face Hub.")
     parser.add_argument("--num_revisions", type=int, default=5, help="Number of revisions to upload optimizer states for (sampled evenly across all revisions)")
+    parser.add_argument("--force", action="store_true", help="Force upload even if optim.pt already exists in the branch")
     args = parser.parse_args()
 
     hf_token = os.getenv("HF_TOKEN")  # Ensure your Hugging Face token is set as an environment variable
@@ -227,6 +266,10 @@ def main():
     repo_name = args.repo_name
     checkpoints = get_checkpoints(repo_name)
     full_repo_name = f"{args.org_name}/{repo_name}"
+
+    print(f"Uploading optimizer states for repository: {full_repo_name}")
+    print(f"Number of revisions per seed: {args.num_revisions}")
+    print(f"Force upload (ignore existing): {'Yes' if args.force else 'No'}")
 
     # Initialize Hugging Face API
     api = HfApi()
@@ -263,12 +306,20 @@ def main():
         progress_bar = tqdm.tqdm(total=len(sampled_revisions), desc=f"Uploading optim states (seed {seed_name})")
         
         successful_uploads = 0
+        skipped_existing = 0
         for step in sampled_revisions:
             branch_name = f"{step.replace('-unsharded-hf','')}-seed-{seed_name}"
             
             # Check if branch exists
             if branch_name not in existing_branches:
                 print(f"\nWarning: Branch {branch_name} does not exist in repository, skipping.")
+                progress_bar.update(1)
+                continue
+            
+            # Check if optim.pt already exists in the branch (unless forced)
+            if not args.force and check_optim_exists(api, full_repo_name, branch_name):
+                progress_bar.set_postfix_str(f"Skipping {branch_name} (optim.pt exists)")
+                skipped_existing += 1
                 progress_bar.update(1)
                 continue
                 
@@ -284,6 +335,8 @@ def main():
         
         progress_bar.close()
         print(f"Successfully uploaded optimizer states to {successful_uploads}/{len(sampled_revisions)} branches for seed {seed_name}")
+        if skipped_existing > 0:
+            print(f"Skipped {skipped_existing} branches that already had optim.pt files")
 
 if __name__ == "__main__":
     main()
