@@ -31,17 +31,23 @@ Usage examples:
 
     # Use longer delays to avoid rate limiting (default is 0.2s)
     python verify_optim.py --delay 0.5
+
+    # Verify by downloading: randomly sample and compare one optim.pt per repo
+    python verify_optim.py --verify_download --single_repo DataDecide-falcon-4M
 """
 
 import os
 import json
 import argparse
 import re
+import random
+import tempfile
+import torch
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import List, Dict, Set, Optional
-# METADATA-ONLY imports - these do NOT download model files
-from huggingface_hub import HfApi
+from typing import List, Dict, Set, Optional, Tuple
+from huggingface_hub import HfApi, hf_hub_download
 try:
     from huggingface_hub.errors import RepositoryNotFoundError, RevisionNotFoundError
 except ImportError:
@@ -133,11 +139,23 @@ class OptimStatus:
     error: Optional[str] = None
 
 @dataclass
+class OptimDownloadStatus:
+    branch_name: str
+    local_path: str
+    download_success: bool
+    comparison_success: bool
+    weights_match: bool
+    download_error: Optional[str] = None
+    comparison_error: Optional[str] = None
+    tolerance_used: float = 1e-6
+
+@dataclass
 class RepoOptimStatus:
     name: str
     repo_exists: bool
     expected_branches: Set[str]
     optim_statuses: List[OptimStatus]
+    download_status: Optional[OptimDownloadStatus] = None
     error: Optional[str] = None
 
 def retry_with_backoff(max_retries=3, base_delay=1.0):
@@ -299,6 +317,161 @@ def get_expected_branches_for_repo(repo_name, num_revisions=5):
     
     return branches
 
+def find_local_optim_path(branch_name: str, checkpoints: List[dict]) -> Optional[str]:
+    """Find the local Weka path for a given branch's optim.pt file."""
+    # Parse branch name: step-seed-<seed_name>
+    # Example: step1250-seed-default
+    parts = branch_name.split('-seed-')
+    if len(parts) != 2:
+        return None
+    
+    step_part = parts[0]
+    seed_name = parts[1]
+    
+    # Find matching checkpoint and step
+    for checkpoint in checkpoints:
+        seed = int(checkpoint["model_name"].split("-")[-1])
+        expected_seed_name = SEED_MAPPING[seed].replace(" ", "-")
+        
+        if expected_seed_name != seed_name:
+            continue
+            
+        # Look for matching step
+        step_with_hf = f"{step_part}-unsharded-hf"
+        if step_with_hf in checkpoint["revisions"]:
+            location = checkpoint['checkpoints_location'].replace("weka://oe-eval-default/", "/data/input/")
+            local_path = os.path.join(location, step_with_hf, "optim.pt")
+            return local_path
+    
+    return None
+
+def compare_optim_states(hf_optim_path: str, local_optim_path: str, tolerance: float = 1e-6) -> Tuple[bool, str]:
+    """Compare optimizer states between HF downloaded optim.pt and local optim.pt."""
+    try:
+        print(f"Loading HF optim from {hf_optim_path}")
+        hf_optim = torch.load(hf_optim_path, map_location='cpu')
+        
+        print(f"Loading local optim from {local_optim_path}")
+        local_optim = torch.load(local_optim_path, map_location='cpu')
+        
+        # Compare the optimizer state dicts
+        if set(hf_optim.keys()) != set(local_optim.keys()):
+            return False, f"Different keys: HF has {set(hf_optim.keys())} vs local has {set(local_optim.keys())}"
+        
+        # Compare each component
+        mismatched_keys = []
+        for key in hf_optim.keys():
+            hf_val = hf_optim[key]
+            local_val = local_optim[key]
+            
+            if isinstance(hf_val, torch.Tensor) and isinstance(local_val, torch.Tensor):
+                if not torch.allclose(hf_val, local_val, atol=tolerance, rtol=tolerance):
+                    mismatched_keys.append(f"{key} (tensor)")
+            elif isinstance(hf_val, dict) and isinstance(local_val, dict):
+                # Handle nested dicts (like state dicts within optimizer state)
+                if set(hf_val.keys()) != set(local_val.keys()):
+                    mismatched_keys.append(f"{key} (dict keys differ)")
+                else:
+                    for subkey in hf_val.keys():
+                        hf_subval = hf_val[subkey]
+                        local_subval = local_val[subkey]
+                        if isinstance(hf_subval, torch.Tensor) and isinstance(local_subval, torch.Tensor):
+                            if not torch.allclose(hf_subval, local_subval, atol=tolerance, rtol=tolerance):
+                                mismatched_keys.append(f"{key}.{subkey} (tensor)")
+                        elif hf_subval != local_subval:
+                            mismatched_keys.append(f"{key}.{subkey} (value)")
+            elif hf_val != local_val:
+                mismatched_keys.append(f"{key} (value)")
+        
+        if mismatched_keys:
+            return False, f"Mismatched keys: {', '.join(mismatched_keys[:5])}" + (f" ... and {len(mismatched_keys)-5} more" if len(mismatched_keys) > 5 else "")
+        
+        return True, "Optimizer states match perfectly"
+        
+    except Exception as e:
+        return False, f"Error comparing optimizer states: {str(e)}"
+
+def verify_optim_download(api: HfApi, org_name: str, repo_name: str, checkpoints: List[dict], 
+                         num_revisions: int, tolerance: float = 1e-6) -> Optional[OptimDownloadStatus]:
+    """Download and verify one randomly sampled optim.pt file from a repository."""
+    
+    # Get expected branches for this repo
+    expected_branches = get_expected_branches_for_repo(repo_name, num_revisions)
+    if not expected_branches:
+        return None
+    
+    # Randomly sample one branch
+    branch_name = random.choice(list(expected_branches))
+    print(f"Randomly selected branch for download verification: {branch_name}")
+    
+    # Find corresponding local path
+    local_path = find_local_optim_path(branch_name, checkpoints)
+    if not local_path:
+        return OptimDownloadStatus(
+            branch_name=branch_name,
+            local_path="",
+            download_success=False,
+            comparison_success=False,
+            weights_match=False,
+            download_error="Could not find local path for branch",
+            tolerance_used=tolerance
+        )
+    
+    if not os.path.exists(local_path):
+        return OptimDownloadStatus(
+            branch_name=branch_name,
+            local_path=local_path,
+            download_success=False,
+            comparison_success=False,
+            weights_match=False,
+            download_error=f"Local path does not exist: {local_path}",
+            tolerance_used=tolerance
+        )
+    
+    # Create a fresh temporary directory for this specific download
+    with tempfile.TemporaryDirectory(prefix=f"optim_{repo_name}_{branch_name}_") as download_temp_dir:
+        try:
+            print(f"Downloading optim.pt from {org_name}/{repo_name} branch {branch_name}")
+            hf_optim_path = hf_hub_download(
+                repo_id=f"{org_name}/{repo_name}",
+                filename="training/optim.pt",
+                revision=branch_name,
+                cache_dir=download_temp_dir,
+                token=os.getenv("HF_TOKEN")
+            )
+            
+            download_status = OptimDownloadStatus(
+                branch_name=branch_name,
+                local_path=local_path,
+                download_success=True,
+                comparison_success=False,
+                weights_match=False,
+                tolerance_used=tolerance
+            )
+            
+            # Compare the optimizer states
+            weights_match, comparison_message = compare_optim_states(hf_optim_path, local_path, tolerance)
+            download_status.comparison_success = True
+            download_status.weights_match = weights_match
+            
+            if not weights_match:
+                download_status.comparison_error = comparison_message
+            
+            print(f"Comparison result: {comparison_message}")
+            return download_status
+            
+        except Exception as e:
+            return OptimDownloadStatus(
+                branch_name=branch_name,
+                local_path=local_path,
+                download_success=False,
+                comparison_success=False,
+                weights_match=False,
+                download_error=f"Failed to download: {str(e)}",
+                tolerance_used=tolerance
+            )
+        # Temporary directory is automatically cleaned up here
+
 @retry_with_backoff(max_retries=3, base_delay=1.0)
 def check_repo_exists_with_retry(api: HfApi, full_repo_name: str):
     """Check if a repository exists with retry logic."""
@@ -381,7 +554,8 @@ def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name
             error=str(e)
         )
 
-def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revisions: int) -> RepoOptimStatus:
+def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revisions: int, 
+                           verify_download: bool = False, tolerance: float = 1e-6) -> RepoOptimStatus:
     """Check the optimizer file status for a complete repository."""
     
     # Check if repo exists
@@ -424,11 +598,23 @@ def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revis
         # Small delay to avoid rate limiting
         time.sleep(0.1)  # Increased from 0.01 to 0.1
     
+    # Perform download verification if requested
+    download_status = None
+    if verify_download:
+        try:
+            checkpoints = get_checkpoints(repo_name)
+            download_status = verify_optim_download(
+                api, org_name, repo_name, checkpoints, num_revisions, tolerance
+            )
+        except Exception as e:
+            print(f"Error during download verification for {repo_name}: {e}")
+    
     return RepoOptimStatus(
         name=repo_name,
         repo_exists=True,
         expected_branches=expected_branches,
-        optim_statuses=optim_statuses
+        optim_statuses=optim_statuses,
+        download_status=download_status
     )
 
 def load_repo_names() -> List[str]:
@@ -436,7 +622,7 @@ def load_repo_names() -> List[str]:
     with open(REPO_NAMES_FILE, 'r') as f:
         return [line.strip() for line in f if line.strip()]
 
-def print_summary(repo_statuses: List[RepoOptimStatus]):
+def print_summary(repo_statuses: List[RepoOptimStatus], verify_download: bool = False):
     """Print a summary of optimizer file statuses."""
     
     total_repos = len(repo_statuses)
@@ -486,13 +672,48 @@ def print_summary(repo_statuses: List[RepoOptimStatus]):
         success_rate = (branches_with_optim / total_branches) * 100
         print(f"Success rate: {success_rate:.1f}%")
     
+    # Download verification statistics (if enabled)
+    if verify_download:
+        repos_with_download_attempts = sum(
+            1 for status in repo_statuses 
+            if status.repo_exists and status.download_status is not None
+        )
+        successful_downloads = sum(
+            1 for status in repo_statuses 
+            if (status.repo_exists and status.download_status is not None and 
+                status.download_status.download_success)
+        )
+        successful_comparisons = sum(
+            1 for status in repo_statuses 
+            if (status.repo_exists and status.download_status is not None and 
+                status.download_status.comparison_success)
+        )
+        matching_weights = sum(
+            1 for status in repo_statuses 
+            if (status.repo_exists and status.download_status is not None and 
+                status.download_status.weights_match)
+        )
+        
+        print(f"")
+        print(f"DOWNLOAD VERIFICATION STATISTICS:")
+        print(f"Repositories with download attempts: {repos_with_download_attempts}")
+        print(f"Successful downloads: {successful_downloads}")
+        print(f"Successful comparisons: {successful_comparisons}")
+        print(f"Matching optimizer states: {matching_weights}")
+        
+        if successful_comparisons > 0:
+            match_rate = (matching_weights / successful_comparisons) * 100
+            print(f"Weight match rate: {match_rate:.1f}%")
+    
     # Show repositories with issues
     problematic_repos = [
         status for status in repo_statuses 
         if (not status.repo_exists or 
             status.error or 
             any(optim_status.branch_exists and not optim_status.optim_exists 
-                for optim_status in status.optim_statuses))
+                for optim_status in status.optim_statuses) or
+            (verify_download and status.download_status is not None and 
+             not status.download_status.weights_match))
     ]
     
     if problematic_repos:
@@ -503,12 +724,24 @@ def print_summary(repo_statuses: List[RepoOptimStatus]):
             elif status.error:
                 print(f"  - {status.name}: {status.error}")
             else:
+                issues = []
                 missing_optim = [
                     optim_status for optim_status in status.optim_statuses 
                     if optim_status.branch_exists and not optim_status.optim_exists
                 ]
                 if missing_optim:
-                    print(f"  - {status.name}: {len(missing_optim)}/{len(status.optim_statuses)} branches missing optim.pt")
+                    issues.append(f"{len(missing_optim)}/{len(status.optim_statuses)} branches missing optim.pt")
+                
+                if verify_download and status.download_status is not None:
+                    if not status.download_status.download_success:
+                        issues.append(f"Download failed: {status.download_status.download_error}")
+                    elif not status.download_status.comparison_success:
+                        issues.append(f"Comparison failed: {status.download_status.comparison_error}")
+                    elif not status.download_status.weights_match:
+                        issues.append(f"Weights don't match: {status.download_status.comparison_error}")
+                
+                if issues:
+                    print(f"  - {status.name}: {'; '.join(issues)}")
 
 def main():
     parser = argparse.ArgumentParser(description="Verify optimizer states in Hugging Face repositories")
@@ -526,12 +759,29 @@ def main():
                        help="Check only repositories ending with this size (e.g., '1B', '60M')")
     parser.add_argument("--delay", type=float, default=0.2,
                        help="Delay between API calls in seconds (default: 0.2)")
+    parser.add_argument("--verify_download", action="store_true",
+                       help="Download and compare one randomly sampled optim.pt per repo against local version")
+    parser.add_argument("--tolerance", type=float, default=1e-6,
+                       help="Tolerance for optimizer state comparison (default: 1e-6)")
+    parser.add_argument("--seed", type=int, default=42,
+                       help="Random seed for branch sampling in download verification")
     args = parser.parse_args()
     
     # Initialize HF API
     api = HfApi()
     
-    # Load repository names
+    # Set random seed for reproducible sampling in download verification
+    if args.verify_download:
+        random.seed(args.seed)
+        print(f"Download verification enabled with tolerance {args.tolerance}")
+        print(f"Random seed set to {args.seed}")
+        
+        # Check for HF token
+        hf_token = os.getenv("HF_TOKEN")
+        if not hf_token:
+            print("Error: HF_TOKEN environment variable not set. Required for download verification.")
+            return
+    
     print("Loading repository names...")
     all_repo_names = load_repo_names()
     
@@ -555,6 +805,9 @@ def main():
         repo_names = all_repo_names
     
     print(f"Found {len(repo_names)} repositories to check")
+    if args.verify_download:
+        print(f"Download verification enabled: will randomly sample and compare 1 optim.pt per repo")
+        print(f"Each download will use a fresh temporary directory that gets cleaned up immediately")
     print(f"Looking for {args.num_revisions} revisions per seed with optim.pt files")
     
     # Check each repository
@@ -562,7 +815,10 @@ def main():
     
     with tqdm(total=len(repo_names), desc="Verifying optim files") as pbar:
         for repo_name in repo_names:
-            status = check_repo_optim_status(api, args.org_name, repo_name, args.num_revisions)
+            status = check_repo_optim_status(
+                api, args.org_name, repo_name, args.num_revisions,
+                verify_download=args.verify_download, tolerance=args.tolerance
+            )
             repo_statuses.append(status)
             
             if args.detailed:
@@ -571,6 +827,13 @@ def main():
                     optim_count = sum(1 for s in status.optim_statuses if s.optim_exists)
                     total_count = len(status.optim_statuses)
                     print(f"  Optim files: {optim_count}/{total_count}")
+                    
+                    if status.download_status:
+                        ds = status.download_status
+                        print(f"  Download verification: {'✓' if ds.weights_match else '✗'}")
+                        if not ds.weights_match:
+                            error = ds.download_error or ds.comparison_error
+                            print(f"    Error: {error}")
                     
                     if args.detailed and optim_count < total_count:
                         missing = [s for s in status.optim_statuses if s.branch_exists and not s.optim_exists]
@@ -584,7 +847,7 @@ def main():
             time.sleep(args.delay)
     
     # Print summary
-    print_summary(repo_statuses)
+    print_summary(repo_statuses, verify_download=args.verify_download)
     
     # Save detailed results to JSON
     results_file = os.path.join(SCRIPT_DIR, "optim_verification_results.json")
@@ -611,6 +874,20 @@ def main():
                 "branches_not_found": sum(1 for s in status.optim_statuses if not s.branch_exists)
             }
         }
+        
+        # Add download verification results if available
+        if status.download_status:
+            result["download_verification"] = {
+                "branch_name": status.download_status.branch_name,
+                "local_path": status.download_status.local_path,
+                "download_success": status.download_status.download_success,
+                "comparison_success": status.download_status.comparison_success,
+                "weights_match": status.download_status.weights_match,
+                "download_error": status.download_status.download_error,
+                "comparison_error": status.download_status.comparison_error,
+                "tolerance_used": status.download_status.tolerance_used
+            }
+        
         results.append(result)
     
     with open(results_file, 'w') as f:
