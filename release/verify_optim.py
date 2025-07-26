@@ -28,6 +28,9 @@ Usage examples:
 
     # Check with different organization
     python verify_optim.py --org_name myorg
+
+    # Use longer delays to avoid rate limiting (default is 0.2s)
+    python verify_optim.py --delay 0.5
 """
 
 import os
@@ -50,6 +53,7 @@ except ImportError:
         RevisionNotFoundError = Exception
 import time
 from tqdm import tqdm
+import random
 
 # Constants
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,6 +139,28 @@ class RepoOptimStatus:
     expected_branches: Set[str]
     optim_statuses: List[OptimStatus]
     error: Optional[str] = None
+
+def retry_with_backoff(max_retries=3, base_delay=1.0):
+    """Decorator to retry API calls with exponential backoff."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    error_str = str(e).lower()
+                    # Check if it's a retryable error (rate limiting, server errors)
+                    if any(x in error_str for x in ['503', '429', '502', '504', 'rate limit', 'service temporarily unavailable']):
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                            print(f"  Retrying in {delay:.1f}s due to: {e}")
+                            time.sleep(delay)
+                            continue
+                    # Re-raise the exception if it's not retryable or we've exhausted retries
+                    raise e
+            return None
+        return wrapper
+    return decorator
 
 def model_name_to_repo_name(model_name):
     """Convert model name from weka_paths.jsonl to repo name format."""
@@ -273,6 +299,30 @@ def get_expected_branches_for_repo(repo_name, num_revisions=5):
     
     return branches
 
+@retry_with_backoff(max_retries=3, base_delay=1.0)
+def check_repo_exists_with_retry(api: HfApi, full_repo_name: str):
+    """Check if a repository exists with retry logic."""
+    return api.repo_info(repo_id=full_repo_name)
+
+@retry_with_backoff(max_retries=3, base_delay=1.0)
+def list_repo_files_with_retry(api: HfApi, full_repo_name: str, revision: str):
+    """List repository files with retry logic."""
+    return api.list_repo_files(
+        repo_id=full_repo_name,
+        revision=revision,
+        repo_type="model"
+    )
+
+@retry_with_backoff(max_retries=3, base_delay=1.0)
+def get_file_info_with_retry(api: HfApi, full_repo_name: str, paths: List[str], revision: str):
+    """Get file info with retry logic."""
+    return api.get_paths_info(
+        repo_id=full_repo_name,
+        paths=paths,
+        revision=revision,
+        repo_type="model"
+    )
+
 def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name: str) -> OptimStatus:
     """Check if optim.pt exists in a specific branch."""
     full_repo_name = f"{org_name}/{repo_name}"
@@ -280,7 +330,7 @@ def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name
     try:
         # First check if branch exists
         try:
-            api.repo_info(repo_id=full_repo_name, revision=branch_name)
+            check_repo_exists_with_retry(api, full_repo_name)
         except RevisionNotFoundError:
             return OptimStatus(
                 branch_name=branch_name,
@@ -291,11 +341,7 @@ def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name
         
         # List files in the branch to check for training/optim.pt
         try:
-            files = api.list_repo_files(
-                repo_id=full_repo_name,
-                revision=branch_name,
-                repo_type="model"
-            )
+            files = list_repo_files_with_retry(api, full_repo_name, branch_name)
             
             optim_file = "training/optim.pt"
             optim_exists = optim_file in files
@@ -304,12 +350,7 @@ def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name
             if optim_exists:
                 # Get file info to check size (metadata only)
                 try:
-                    file_info = api.get_paths_info(
-                        repo_id=full_repo_name,
-                        paths=[optim_file],
-                        revision=branch_name,
-                        repo_type="model"
-                    )
+                    file_info = get_file_info_with_retry(api, full_repo_name, [optim_file], branch_name)
                     if file_info and len(file_info) > 0:
                         file_size = file_info[0].size
                 except Exception:
@@ -345,7 +386,7 @@ def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revis
     
     # Check if repo exists
     try:
-        api.repo_info(repo_id=f"{org_name}/{repo_name}")
+        check_repo_exists_with_retry(api, f"{org_name}/{repo_name}")
     except RepositoryNotFoundError:
         return RepoOptimStatus(
             name=repo_name,
@@ -381,7 +422,7 @@ def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revis
         status = check_optim_in_branch(api, org_name, repo_name, branch_name)
         optim_statuses.append(status)
         # Small delay to avoid rate limiting
-        time.sleep(0.01)
+        time.sleep(0.1)  # Increased from 0.01 to 0.1
     
     return RepoOptimStatus(
         name=repo_name,
@@ -483,6 +524,8 @@ def main():
                        help="Check only this specific repository name")
     parser.add_argument("--size_filter", type=str,
                        help="Check only repositories ending with this size (e.g., '1B', '60M')")
+    parser.add_argument("--delay", type=float, default=0.2,
+                       help="Delay between API calls in seconds (default: 0.2)")
     args = parser.parse_args()
     
     # Initialize HF API
@@ -537,8 +580,8 @@ def main():
                             print(f"    ... and {len(missing) - 3} more")
             
             pbar.update(1)
-            # Rate limiting
-            time.sleep(0.02)
+            # Rate limiting - use configurable delay
+            time.sleep(args.delay)
     
     # Print summary
     print_summary(repo_statuses)
