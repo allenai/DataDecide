@@ -44,6 +44,8 @@ import random
 import tempfile
 import torch
 import logging
+import hashlib
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import List, Dict, Set, Optional, Tuple
@@ -434,7 +436,7 @@ def compare_optim_states(hf_optim_path: str, local_optim_path: str, tolerance: f
         return False, f"Error comparing optimizer states: {str(e)}"
 
 def verify_optim_download(api: HfApi, org_name: str, repo_name: str, checkpoints: List[dict], 
-                         num_revisions: int, tolerance: float = 1e-6) -> Optional[OptimDownloadStatus]:
+                         num_revisions: int, tolerance: float = 1e-6, deep_compare: bool = False) -> Optional[OptimDownloadStatus]:
     """Download and verify one randomly sampled optim.pt file from a repository."""
     
     # Get expected branches for this repo
@@ -492,7 +494,21 @@ def verify_optim_download(api: HfApi, org_name: str, repo_name: str, checkpoints
             )
             
             # Compare the optimizer states
-            weights_match, comparison_message = compare_optim_states(hf_optim_path, local_path, tolerance)
+            if deep_compare:
+                # Use deep tensor comparison 
+                print("Using deep tensor comparison...")
+                weights_match, comparison_message = compare_optim_states(hf_optim_path, local_path, tolerance)
+            else:
+                # Use fast file comparison first
+                print("Using fast file comparison...")
+                weights_match, comparison_message = fast_file_compare(hf_optim_path, local_path)
+                
+                # If fast comparison fails, optionally fall back to deep comparison
+                if not weights_match and "differ despite same size" in comparison_message:
+                    print("Files have same size but different hashes. Falling back to tensor comparison...")
+                    weights_match, comparison_message = compare_optim_states(hf_optim_path, local_path, tolerance)
+                    comparison_message = f"File hash mismatch, tensor comparison: {comparison_message}"
+            
             download_status.comparison_success = True
             download_status.weights_match = weights_match
             
@@ -597,7 +613,7 @@ def check_optim_in_branch(api: HfApi, org_name: str, repo_name: str, branch_name
         )
 
 def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revisions: int, 
-                           verify_download: bool = False, tolerance: float = 1e-6) -> RepoOptimStatus:
+                           verify_download: bool = False, tolerance: float = 1e-6, deep_compare: bool = False) -> RepoOptimStatus:
     """Check the optimizer file status for a complete repository."""
     
     # Check if repo exists
@@ -646,7 +662,7 @@ def check_repo_optim_status(api: HfApi, org_name: str, repo_name: str, num_revis
         try:
             checkpoints = get_checkpoints(repo_name)
             download_status = verify_optim_download(
-                api, org_name, repo_name, checkpoints, num_revisions, tolerance
+                api, org_name, repo_name, checkpoints, num_revisions, tolerance, deep_compare
             )
         except Exception as e:
             print(f"Error during download verification for {repo_name}: {e}")
@@ -785,6 +801,38 @@ def print_summary(repo_statuses: List[RepoOptimStatus], verify_download: bool = 
                 if issues:
                     print(f"  - {status.name}: {'; '.join(issues)}")
 
+def fast_file_compare(file1: str, file2: str) -> Tuple[bool, str]:
+    """
+    Fast file comparison using size and hash.
+    Returns (is_identical, details_message)
+    """
+    try:
+        # Check file sizes first (fastest check)
+        size1 = os.path.getsize(file1)
+        size2 = os.path.getsize(file2)
+        
+        if size1 != size2:
+            return False, f"File sizes differ: {size1:,} vs {size2:,} bytes"
+        
+        # If sizes match, compute hashes
+        def get_file_hash(filepath: str) -> str:
+            hash_sha256 = hashlib.sha256()
+            with open(filepath, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash_sha256.update(chunk)
+            return hash_sha256.hexdigest()
+        
+        hash1 = get_file_hash(file1)
+        hash2 = get_file_hash(file2)
+        
+        if hash1 == hash2:
+            return True, f"Files identical (size: {size1:,} bytes, hash: {hash1[:12]}...)"
+        else:
+            return False, f"Files differ despite same size ({size1:,} bytes). Hash1: {hash1[:12]}..., Hash2: {hash2[:12]}..."
+    
+    except Exception as e:
+        return False, f"Error during file comparison: {str(e)}"
+
 def main():
     parser = argparse.ArgumentParser(description="Verify optimizer states in Hugging Face repositories")
     parser.add_argument("--org_name", type=str, default="allenai", 
@@ -803,6 +851,8 @@ def main():
                        help="Delay between API calls in seconds (default: 0.2)")
     parser.add_argument("--verify_download", action="store_true",
                        help="Download and compare one randomly sampled optim.pt per repo against local version")
+    parser.add_argument("--deep_compare", action="store_true",
+                       help="Use deep tensor comparison instead of fast file hash comparison (slower but more thorough)")
     parser.add_argument("--tolerance", type=float, default=1e-6,
                        help="Tolerance for optimizer state comparison (default: 1e-6)")
     parser.add_argument("--seed", type=int, default=42,
@@ -817,6 +867,10 @@ def main():
         random.seed(args.seed)
         print(f"Download verification enabled with tolerance {args.tolerance}")
         print(f"Random seed set to {args.seed}")
+        if args.deep_compare:
+            print("Using deep tensor comparison (slower but thorough)")
+        else:
+            print("Using fast file comparison (hash-based with tensor fallback if needed)")
         
         # Check for HF token
         hf_token = os.getenv("HF_TOKEN")
@@ -859,7 +913,7 @@ def main():
         for repo_name in repo_names:
             status = check_repo_optim_status(
                 api, args.org_name, repo_name, args.num_revisions,
-                verify_download=args.verify_download, tolerance=args.tolerance
+                verify_download=args.verify_download, tolerance=args.tolerance, deep_compare=args.deep_compare
             )
             repo_statuses.append(status)
             
