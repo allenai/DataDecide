@@ -365,8 +365,22 @@ def compare_optim_states(hf_optim_path: str, local_optim_path: str, tolerance: f
             local_val = local_optim[key]
             
             if isinstance(hf_val, torch.Tensor) and isinstance(local_val, torch.Tensor):
-                if not torch.allclose(hf_val, local_val, atol=tolerance, rtol=tolerance):
-                    mismatched_keys.append(f"{key} (tensor)")
+                # Check shapes first
+                if hf_val.shape != local_val.shape:
+                    mismatched_keys.append(f"{key} (shape mismatch: HF {hf_val.shape} vs local {local_val.shape})")
+                    continue
+                
+                # Use try-except for tensor comparison to handle edge cases
+                try:
+                    if not torch.allclose(hf_val, local_val, atol=tolerance, rtol=tolerance):
+                        # Calculate some statistics about the difference
+                        diff = torch.abs(hf_val - local_val)
+                        max_diff = torch.max(diff).item()
+                        mean_diff = torch.mean(diff).item()
+                        mismatched_keys.append(f"{key} (tensor values differ: max_diff={max_diff:.2e}, mean_diff={mean_diff:.2e})")
+                except Exception as tensor_err:
+                    mismatched_keys.append(f"{key} (tensor comparison error: {str(tensor_err)})")
+                    
             elif isinstance(hf_val, dict) and isinstance(local_val, dict):
                 # Handle nested dicts (like state dicts within optimizer state)
                 if set(hf_val.keys()) != set(local_val.keys()):
@@ -376,15 +390,43 @@ def compare_optim_states(hf_optim_path: str, local_optim_path: str, tolerance: f
                         hf_subval = hf_val[subkey]
                         local_subval = local_val[subkey]
                         if isinstance(hf_subval, torch.Tensor) and isinstance(local_subval, torch.Tensor):
-                            if not torch.allclose(hf_subval, local_subval, atol=tolerance, rtol=tolerance):
-                                mismatched_keys.append(f"{key}.{subkey} (tensor)")
+                            # Check shapes first
+                            if hf_subval.shape != local_subval.shape:
+                                mismatched_keys.append(f"{key}.{subkey} (shape mismatch: HF {hf_subval.shape} vs local {local_subval.shape})")
+                                continue
+                            
+                            try:
+                                if not torch.allclose(hf_subval, local_subval, atol=tolerance, rtol=tolerance):
+                                    diff = torch.abs(hf_subval - local_subval)
+                                    max_diff = torch.max(diff).item()
+                                    mean_diff = torch.mean(diff).item()
+                                    mismatched_keys.append(f"{key}.{subkey} (tensor values differ: max_diff={max_diff:.2e}, mean_diff={mean_diff:.2e})")
+                            except Exception as tensor_err:
+                                mismatched_keys.append(f"{key}.{subkey} (tensor comparison error: {str(tensor_err)})")
                         elif hf_subval != local_subval:
-                            mismatched_keys.append(f"{key}.{subkey} (value)")
+                            mismatched_keys.append(f"{key}.{subkey} (value differs: HF={hf_subval} vs local={local_subval})")
+            elif isinstance(hf_val, list) and isinstance(local_val, list):
+                # Handle lists (some optimizers store lists)
+                if len(hf_val) != len(local_val):
+                    mismatched_keys.append(f"{key} (list length differs: HF={len(hf_val)} vs local={len(local_val)})")
+                else:
+                    for i, (hf_item, local_item) in enumerate(zip(hf_val, local_val)):
+                        if isinstance(hf_item, torch.Tensor) and isinstance(local_item, torch.Tensor):
+                            if hf_item.shape != local_item.shape:
+                                mismatched_keys.append(f"{key}[{i}] (shape mismatch)")
+                                continue
+                            try:
+                                if not torch.allclose(hf_item, local_item, atol=tolerance, rtol=tolerance):
+                                    mismatched_keys.append(f"{key}[{i}] (tensor values differ)")
+                            except Exception:
+                                mismatched_keys.append(f"{key}[{i}] (tensor comparison error)")
+                        elif hf_item != local_item:
+                            mismatched_keys.append(f"{key}[{i}] (value differs)")
             elif hf_val != local_val:
-                mismatched_keys.append(f"{key} (value)")
+                mismatched_keys.append(f"{key} (value differs: HF={hf_val} vs local={local_val})")
         
         if mismatched_keys:
-            return False, f"Mismatched keys: {', '.join(mismatched_keys[:5])}" + (f" ... and {len(mismatched_keys)-5} more" if len(mismatched_keys) > 5 else "")
+            return False, f"Mismatched keys: {', '.join(mismatched_keys[:3])}" + (f" ... and {len(mismatched_keys)-3} more" if len(mismatched_keys) > 3 else "")
         
         return True, "Optimizer states match perfectly"
         
