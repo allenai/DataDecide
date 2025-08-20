@@ -1,0 +1,178 @@
+[
+  {
+    "name": "DataDecide-falcon-and-cc-qc-orig-10p-4M",
+    "exists": true,
+    "error": null,
+    "expected_branches": [
+      "step5725-seed-default",
+      "step5725-seed-small-aux-2",
+      "step2500-seed-small-aux-2",
+      "step1250-seed-small-aux-3",
+      "step0-seed-small-aux-2",
+      "step5000-seed-small-aux-3",
+      "step2500-seed-small-aux-3",
+      "step3750-seed-small-aux-2",
+      "step3750-seed-default",
+      "step3750-seed-small-aux-3",
+      "step5000-seed-default",
+      "step5725-seed-small-aux-3",
+      "step5000-seed-small-aux-2",
+      "step1250-seed-small-aux-2",
+      "step0-seed-default",
+      "step1250-seed-default",
+      "step0-seed-small-aux-3",
+      "step2500-seed-default"
+    ],
+    "found_branches": [
+      "step5725-seed-small-aux-2",
+      "step0-seed-small-aux-2",
+      "step5000-seed-small-aux-3",
+      "step0-seed-small-aux-3",
+      "step3750-seed-small-aux-2",
+      "step2500-seed-small-aux-3",
+      "step3750-seed-small-aux-3",
+      "step3750-seed-default",
+      "step5725-seed-small-aux-3",
+      "step5000-seed-small-aux-2",
+      "step2500-seed-default",
+      "step5000-seed-default",
+      "main",
+      "step1250-seed-small-aux-2",
+      "step0-seed-default",
+      "step1250-seed-default",
+      "step2500-seed-small-aux-2",
+      "step1250-seed-small-aux-3"
+    ],
+    "missing_branches": [
+      "step5725-seed-default"
+    ],
+    "branch_details": [
+      {
+        "name": "step5725-seed-default",
+        "exists": false,
+        "has_model_commits": false,
+        "commit_count": 0,
+        "error": "Branch not found"
+      },
+      {
+        "name": "step5725-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 15,
+        "error": null
+      },
+      {
+        "name": "step2500-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 19,
+        "error": null
+      },
+      {
+        "name": "step1250-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 12,
+        "error": null
+      },
+      {
+        "name": "step0-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 20,
+        "error": null
+      },
+      {
+        "name": "step5000-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 10,
+        "error": null
+      },
+      {
+        "name": "step2500-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 13,
+        "error": null
+      },
+      {
+        "name": "step3750-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 17,
+        "error": null
+      },
+      {
+        "name": "step3750-seed-default",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 5,
+        "error": null
+      },
+      {
+        "name": "step3750-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 11,
+        "error": null
+      },
+      {
+        "name": "step5000-seed-default",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 4,
+        "error": null
+      },
+      {
+        "name": "step5725-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 9,
+        "error": null
+      },
+      {
+        "name": "step5000-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 16,
+        "error": null
+      },
+      {
+        "name": "step1250-seed-small-aux-2",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 18,
+        "error": null
+      },
+      {
+        "name": "step0-seed-default",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 8,
+        "error": null
+      },
+      {
+        "name": "step1250-seed-default",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 6,
+        "error": null
+      },
+      {
+        "name": "step0-seed-small-aux-3",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 14,
+        "error": null
+      },
+      {
+        "name": "step2500-seed-default",
+        "exists": true,
+        "has_model_commits": true,
+        "commit_count": 7,
+        "error": null
+      }
+    ]
+  }
+]
