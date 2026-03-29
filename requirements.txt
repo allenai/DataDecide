@@ -12,7 +12,8 @@ numpy<2
 transformers>=4.45.0
 lm_eval==0.4.3
 torch>=2.4,<2.5
-ai2-olmo @ git+https://github.com/allenai/OLMo.git@main
+torchvision>=0.19.0,<=0.20.0  # Compatible with torch 2.4-2.5
+ai2-olmo==0.6.0
 einops
 pygsheets
 bitsandbytes
